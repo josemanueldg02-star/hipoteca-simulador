@@ -1,8 +1,10 @@
-// Cuota = P * [ r * (1 + r)^n ] / [ (1 + r)^n - 1 ]   --> FÓRMULA BANCARIA
 package com.portfolio.hipoteca_api.service;
 
 // IMPORTS
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.stereotype.Service;
+import com.portfolio.hipoteca_api.dto.CuotaMensual;
 import com.portfolio.hipoteca_api.dto.HipotecaRequest;
 import com.portfolio.hipoteca_api.dto.HipotecaResponse;
 
@@ -10,36 +12,50 @@ import com.portfolio.hipoteca_api.dto.HipotecaResponse;
 public class HipotecaService {
 
     public HipotecaResponse calcularHipoteca(HipotecaRequest request) {
-
+        
         double p = request.capital();
         double interesAnual = request.interesAnual();
         int anios = request.anios();
 
-        // Preparación de datos (Convertir años a meses y el interés anual a mensual).
-        int n = anios *12;
-        double r = (interesAnual / 100) / 12;
+        int n = anios * 12; 
+        double r = (interesAnual / 100) / 12; 
 
-        double cuotaMensual;
+        double cuotaMensualReal;
 
-        // Fórmula del banco.
         if (r == 0) {
-            cuotaMensual = p/n;
+            cuotaMensualReal = p / n; 
         } else {
-            // Para el sistema Francés.
             double factor = Math.pow(1 + r, n);
-            cuotaMensual = p* (r * factor) / (factor - 1);
+            cuotaMensualReal = p * (r * factor) / (factor - 1);
         }
 
-        // Calculo de totales.
-        double totalPagado = cuotaMensual * n;
+        double totalPagado = cuotaMensualReal * n;
         double totalIntereses = totalPagado - p;
 
-        // Redondeo a 2 decimales.
-        cuotaMensual = Math.round(cuotaMensual * 100.0) / 100.0;
-        totalIntereses = Math.round(totalIntereses * 100.0) / 100.0;
-        totalPagado = Math.round(totalPagado * 100.0) / 100.0;
+        //CUADRO DE AMORTIZACIÓN
+        List<CuotaMensual> cuadro = new ArrayList<>();
+        double deudaPendiente = p;
 
-        return new HipotecaResponse(cuotaMensual, totalIntereses, totalPagado);
+        for (int i = 1; i <= n; i++) {
+            double interesesDelMes = deudaPendiente * r;
+            double principalDelMes = cuotaMensualReal - interesesDelMes;
+            deudaPendiente = deudaPendiente - principalDelMes;
+
+            if (deudaPendiente < 0) deudaPendiente = 0;
+
+            cuadro.add(new CuotaMensual(
+                i,
+                Math.round(principalDelMes * 100.0) / 100.0,
+                Math.round(interesesDelMes * 100.0) / 100.0,
+                Math.round(deudaPendiente * 100.0) / 100.0
+            ));
+        }
+
+        return new HipotecaResponse(
+            Math.round(cuotaMensualReal * 100.0) / 100.0, 
+            Math.round(totalIntereses * 100.0) / 100.0, 
+            Math.round(totalPagado * 100.0) / 100.0,
+            cuadro 
+        );
     }
-    
 }
